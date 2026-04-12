@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BrownButter Shopify Automation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .job-card {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.pending { background: #fff3cd; }
+        .status.running { background: #cfe2ff; }
+        .status.completed { background: #d1e7dd; }
+        .status.failed { background: #f8d7da; }
+        .logs {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>BrownButter Shopify Upload App</h1>
+    
+    <div class="job-card">
+        <h2>1. Upload Images (Drive → Cloudinary)</h2>
+        <p>Downloads images from Google Drive and uploads to Cloudinary</p>
+        <button onclick="startJob('drive-to-cloudinary')">Start Upload</button>
+        <div id="status-1" class="status" style="display:none;"></div>
+        <div id="logs-1" class="logs" style="display:none;"></div>
+    </div>
+    
+    <div class="job-card">
+        <h2>2. Sync URLs & Generate Titles</h2>
+        <p>Fetches Cloudinary URLs and generates AI titles</p>
+        <button onclick="startJob('sync-urls')">Start Sync</button>
+        <div id="status-2" class="status" style="display:none;"></div>
+        <div id="logs-2" class="logs" style="display:none;"></div>
+    </div>
+    
+    <div class="job-card">
+        <h2>3. Generate Shopify CSV</h2>
+        <p>Creates Shopify import file from product data</p>
+        <button onclick="startJob('generate-csv')">Generate CSV</button>
+        <div id="status-3" class="status" style="display:none;"></div>
+        <div id="logs-3" class="logs" style="display:none;"></div>
+    </div>
+
+    <script>
+        const SHEET_NAME = 'BrownButter Shopify Upload - Pilot';
+        let activeJobs = {};
+
+        async function startJob(jobType) {
+            const endpoint = `/api/jobs/${jobType}`;
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sheet_name: SHEET_NAME})
+                });
+                
+                const data = await response.json();
+                
+                if (data.job_id) {
+                    const jobNum = jobType === 'drive-to-cloudinary' ? 1 : jobType === 'sync-urls' ? 2 : 3;
+                    activeJobs[jobNum] = data.job_id;
+                    pollStatus(jobNum, data.job_id);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error starting job: ' + error);
+            }
+        }
+
+        async function pollStatus(jobNum, jobId) {
+            const statusDiv = document.getElementById(`status-${jobNum}`);
+            const logsDiv = document.getElementById(`logs-${jobNum}`);
+            
+            statusDiv.style.display = 'block';
+            logsDiv.style.display = 'block';
+            
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/status/${jobId}`);
+                    const data = await response.json();
+                    
+                    if (data.status) {
+                        const status = data.status.status;
+                        const message = data.status.message;
+                        
+                        statusDiv.className = `status ${status}`;
+                        statusDiv.textContent = `Status: ${status.toUpperCase()} - ${message}`;
+                        
+                        if (data.logs) {
+                            logsDiv.innerHTML = data.logs.join('<br>');
+                            logsDiv.scrollTop = logsDiv.scrollHeight;
+                        }
+                        
+                        if (status === 'completed' || status === 'failed') {
+                            clearInterval(interval);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling status:', error);
+                }
+            }, 2000);  // Poll every 2 seconds
+        }
+    </script>
+</body>
+</html>
