@@ -1,22 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BrownButter Shopify Automation</title>
+    <title>BrownButter Shopify Upload App</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1000px;
             margin: 50px auto;
             padding: 20px;
+            background: #f5f5f5;
         }
         h1 {
             color: #333;
+            text-align: center;
         }
         .job-card {
+            background: white;
             border: 1px solid #ddd;
-            padding: 20px;
+            padding: 25px;
             margin: 20px 0;
             border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         button {
             background: #4CAF50;
@@ -26,31 +30,53 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
+            margin-right: 10px;
         }
-        button:hover {
-            background: #45a049;
+        button:hover { background: #45a049; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        button.stop-btn { background: #f44336; }
+        button.stop-btn:hover { background: #da190b; }
+        .progress-bar {
+            width: 100%;
+            height: 25px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+            display: none;
         }
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
         }
         .status {
             margin: 10px 0;
-            padding: 10px;
+            padding: 12px;
             border-radius: 4px;
+            display: none;
         }
         .status.pending { background: #fff3cd; }
         .status.running { background: #cfe2ff; }
         .status.completed { background: #d1e7dd; }
         .status.failed { background: #f8d7da; }
+        .status.cancelled { background: #e2e3e5; }
         .logs {
-            background: #f5f5f5;
-            padding: 10px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
             border-radius: 4px;
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
             font-family: monospace;
             font-size: 12px;
+            display: none;
         }
     </style>
 </head>
@@ -60,87 +86,99 @@
     <div class="job-card">
         <h2>1. Upload Images (Drive → Cloudinary)</h2>
         <p>Downloads images from Google Drive and uploads to Cloudinary</p>
-        <button onclick="startJob('drive-to-cloudinary')">Start Upload</button>
-        <div id="status-1" class="status" style="display:none;"></div>
-        <div id="logs-1" class="logs" style="display:none;"></div>
+        <div>
+            <button id="btn-1" onclick="startJob('drive-to-cloudinary', 1)">Start Upload</button>
+            <button id="stop-1" class="stop-btn" onclick="stopJob(1)" style="display:none;">Stop</button>
+        </div>
+        <div id="progress-bar-1" class="progress-bar"><div id="progress-fill-1" class="progress-fill">0%</div></div>
+        <div id="status-1" class="status"></div>
+        <div id="logs-1" class="logs"></div>
     </div>
     
     <div class="job-card">
         <h2>2. Sync URLs & Generate Titles</h2>
         <p>Fetches Cloudinary URLs and generates AI titles</p>
-        <button onclick="startJob('sync-urls')">Start Sync</button>
-        <div id="status-2" class="status" style="display:none;"></div>
-        <div id="logs-2" class="logs" style="display:none;"></div>
+        <div>
+            <button id="btn-2" onclick="startJob('sync-urls', 2)">Start Sync</button>
+            <button id="stop-2" class="stop-btn" onclick="stopJob(2)" style="display:none;">Stop</button>
+        </div>
+        <div id="progress-bar-2" class="progress-bar"><div id="progress-fill-2" class="progress-fill">0%</div></div>
+        <div id="status-2" class="status"></div>
+        <div id="logs-2" class="logs"></div>
     </div>
     
     <div class="job-card">
         <h2>3. Generate Shopify CSV</h2>
         <p>Creates Shopify import file from product data</p>
-        <button onclick="startJob('generate-csv')">Generate CSV</button>
-        <div id="status-3" class="status" style="display:none;"></div>
-        <div id="logs-3" class="logs" style="display:none;"></div>
+        <div>
+            <button id="btn-3" onclick="startJob('generate-csv', 3)">Generate CSV</button>
+            <button id="stop-3" class="stop-btn" onclick="stopJob(3)" style="display:none;">Stop</button>
+        </div>
+        <div id="progress-bar-3" class="progress-bar"><div id="progress-fill-3" class="progress-fill">0%</div></div>
+        <div id="status-3" class="status"></div>
+        <div id="logs-3" class="logs"></div>
     </div>
 
     <script>
         const SHEET_NAME = 'BrownButter Shopify Upload - Pilot';
-        let activeJobs = {};
+        let activeJobs = {}, pollIntervals = {};
 
-        async function startJob(jobType) {
-            const endpoint = `/api/jobs/${jobType}`;
+        async function startJob(jobType, jobNum) {
+            const btn = document.getElementById(`btn-${jobNum}`);
+            btn.disabled = true;
             
             try {
-                const response = await fetch(endpoint, {
+                const res = await fetch(`/api/jobs/${jobType}`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({sheet_name: SHEET_NAME})
                 });
-                
-                const data = await response.json();
-                
+                const data = await res.json();
                 if (data.job_id) {
-                    const jobNum = jobType === 'drive-to-cloudinary' ? 1 : jobType === 'sync-urls' ? 2 : 3;
                     activeJobs[jobNum] = data.job_id;
+                    document.getElementById(`stop-${jobNum}`).style.display = 'inline-block';
                     pollStatus(jobNum, data.job_id);
                 } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
+                    alert('Error: ' + (data.error || 'Unknown'));
+                    btn.disabled = false;
                 }
-            } catch (error) {
-                alert('Error starting job: ' + error);
+            } catch (e) {
+                alert('Error: ' + e);
+                btn.disabled = false;
             }
         }
 
+        async function stopJob(jobNum) {
+            if (!confirm('Stop this job?')) return;
+            const jobId = activeJobs[jobNum];
+            await fetch(`/api/cancel/${jobId}`, {method: 'POST'});
+        }
+
         async function pollStatus(jobNum, jobId) {
-            const statusDiv = document.getElementById(`status-${jobNum}`);
-            const logsDiv = document.getElementById(`logs-${jobNum}`);
+            ['status', 'logs', 'progress-bar'].forEach(id => 
+                document.getElementById(`${id}-${jobNum}`).style.display = 'block'
+            );
             
-            statusDiv.style.display = 'block';
-            logsDiv.style.display = 'block';
-            
-            const interval = setInterval(async () => {
-                try {
-                    const response = await fetch(`/api/status/${jobId}`);
-                    const data = await response.json();
-                    
-                    if (data.status) {
-                        const status = data.status.status;
-                        const message = data.status.message;
-                        
-                        statusDiv.className = `status ${status}`;
-                        statusDiv.textContent = `Status: ${status.toUpperCase()} - ${message}`;
-                        
-                        if (data.logs) {
-                            logsDiv.innerHTML = data.logs.join('<br>');
-                            logsDiv.scrollTop = logsDiv.scrollHeight;
-                        }
-                        
-                        if (status === 'completed' || status === 'failed') {
-                            clearInterval(interval);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error polling status:', error);
+            pollIntervals[jobNum] = setInterval(async () => {
+                const res = await fetch(`/api/status/${jobId}`);
+                const data = await res.json();
+                const status = data.status?.status;
+                const msg = data.status?.message || '';
+                const prog = data.status?.progress || 0;
+                
+                document.getElementById(`status-${jobNum}`).className = `status ${status}`;
+                document.getElementById(`status-${jobNum}`).innerHTML = `<strong>${status?.toUpperCase()}</strong>: ${msg}`;
+                document.getElementById(`progress-fill-${jobNum}`).style.width = `${prog}%`;
+                document.getElementById(`progress-fill-${jobNum}`).textContent = `${prog}%`;
+                document.getElementById(`logs-${jobNum}`).innerHTML = (data.logs || []).map(l => `<div>${l}</div>`).join('');
+                document.getElementById(`logs-${jobNum}`).scrollTop = 999999;
+                
+                if (['completed', 'failed', 'cancelled'].includes(status)) {
+                    clearInterval(pollIntervals[jobNum]);
+                    document.getElementById(`stop-${jobNum}`).style.display = 'none';
+                    document.getElementById(`btn-${jobNum}`).disabled = false;
                 }
-            }, 2000);  // Poll every 2 seconds
+            }, 1000);
         }
     </script>
 </body>
