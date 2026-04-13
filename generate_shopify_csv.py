@@ -197,6 +197,9 @@ def get_shopify_category(gender, category, config):
     full_key = f"{gender_key}_{category_key}"
     
     categories = config.get('shopify_categories', {})
+    if categories is None:
+        print(f"ERROR: shopify_categories not found in config!")
+        return ''
     return categories.get(full_key, '')
 
 def generate_sku(product_code, size_index):

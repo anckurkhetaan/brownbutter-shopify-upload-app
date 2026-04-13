@@ -165,9 +165,30 @@
                 const status = data.status?.status;
                 const msg = data.status?.message || '';
                 const prog = data.status?.progress || 0;
+                const elapsed = data.status?.elapsed_seconds || 0;
+                const error = data.status?.error;
+                
+                // Format elapsed time
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                const timeStr = `${mins}m ${secs}s`;
+                
+                // Update status with timer
+                let statusHTML = `<strong>${status?.toUpperCase()}</strong>: ${msg}`;
+                if (elapsed > 0) {
+                    statusHTML += ` <span style="color: #666; font-size: 0.9em;">(${timeStr})</span>`;
+                }
+                
+                // Show error details if failed
+                if (status === 'failed' && error) {
+                    statusHTML += `<br><details style="margin-top: 10px; background: #fff3cd; padding: 10px; border-radius: 4px;">
+                        <summary style="cursor: pointer; color: #856404; font-weight: bold;">Error Details (click to expand)</summary>
+                        <pre style="margin-top: 10px; font-size: 12px; overflow-x: auto; white-space: pre-wrap;">${error}</pre>
+                    </details>`;
+                }
                 
                 document.getElementById(`status-${jobNum}`).className = `status ${status}`;
-                document.getElementById(`status-${jobNum}`).innerHTML = `<strong>${status?.toUpperCase()}</strong>: ${msg}`;
+                document.getElementById(`status-${jobNum}`).innerHTML = statusHTML;
                 document.getElementById(`progress-fill-${jobNum}`).style.width = `${prog}%`;
                 document.getElementById(`progress-fill-${jobNum}`).textContent = `${prog}%`;
                 document.getElementById(`logs-${jobNum}`).innerHTML = (data.logs || []).map(l => `<div>${l}</div>`).join('');

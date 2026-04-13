@@ -59,13 +59,29 @@ def log_message(job_id, message):
     print(f"[{job_id}] {message}", flush=True)
     sys.stdout.flush()
 
-def update_job_status(job_id, status, progress=0, message=""):
-    """Update job status"""
+def update_job_status(job_id, status, progress=0, message="", error=None):
+    """Update job status with error tracking and timing"""
+    current_status = job_status.get(job_id, {})
+    
+    # Preserve start_time if already set
+    start_time = current_status.get('start_time')
+    if not start_time and status == 'running':
+        start_time = datetime.now().isoformat()
+    
+    # Calculate elapsed time
+    elapsed = None
+    if start_time:
+        start_dt = datetime.fromisoformat(start_time)
+        elapsed = int((datetime.now() - start_dt).total_seconds())
+    
     job_status[job_id] = {
         'status': status,  # pending, running, completed, failed, cancelled
         'progress': progress,
         'message': message,
-        'timestamp': datetime.now().isoformat()
+        'error': error,  # Full error traceback if failed
+        'timestamp': datetime.now().isoformat(),
+        'start_time': start_time,
+        'elapsed_seconds': elapsed
     }
     log_message(job_id, message)
 
@@ -279,8 +295,9 @@ def run_drive_to_cloudinary(job_id, sheet_name):
         
     except Exception as e:
         error_msg = f"Error: {str(e)}"
-        log_message(job_id, f'ERROR: {traceback.format_exc()}')
-        update_job_status(job_id, 'failed', 0, error_msg)
+        error_traceback = traceback.format_exc()
+        log_message(job_id, f'ERROR: {error_traceback}')
+        update_job_status(job_id, 'failed', 0, error_msg, error=error_traceback)
 
 @app.route('/api/jobs/drive-to-cloudinary', methods=['POST'])
 def start_drive_to_cloudinary():
@@ -334,17 +351,22 @@ def run_sync_urls(job_id, sheet_name):
         update_job_status(job_id, 'running', 30, 'Fetching URLs from Cloudinary...')
         
         sku_url_map, sku_public_ids = sync_script.fetch_all_cloudinary_urls(cloudinary_folder)
+        total_skus = len(sku_url_map)
         
-        update_job_status(job_id, 'running', 50, 'Updating Google Sheet...')
+        update_job_status(job_id, 'running', 50, f'Found {total_skus} SKUs - Updating Google Sheet...')
         
         sheets_client = sync_script.authenticate_sheets(config)
         sheet = sync_script.open_spreadsheet(sheets_client, config)
+        
+        # Note: The actual sync function logs internally, so we just track completion
         sync_script.update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids)
         
-        update_job_status(job_id, 'completed', 100, f'Done! Processed {len(sku_url_map)} SKUs')
+        update_job_status(job_id, 'completed', 100, f'Done! Processed {total_skus} SKUs with AI titles')
         
     except Exception as e:
-        update_job_status(job_id, 'failed', 0, str(e))
+        error_traceback = traceback.format_exc()
+        log_message(job_id, f'ERROR: {error_traceback}')
+        update_job_status(job_id, 'failed', 0, str(e), error=error_traceback)
 
 
 @app.route('/api/jobs/sync-urls', methods=['POST'])
@@ -397,7 +419,11 @@ def run_generate_csv(job_id, sheet_name):
         sheets_client = csv_script.authenticate_sheets(config)
         sheet = csv_script.open_spreadsheet(sheets_client, config)
         
-        update_job_status(job_id, 'running', 50, 'Generating CSV...')
+        # Get product count
+        product_df = csv_script.get_product_data(sheet, config)
+        total_products = len(product_df)
+        
+        update_job_status(job_id, 'running', 50, f'Generating CSV for {total_products} products...')
         
         if check_cancelled(job_id):
             return
@@ -405,11 +431,12 @@ def run_generate_csv(job_id, sheet_name):
         csv_file = csv_script.main()
         file_url = f"/{csv_file}"
         
-        update_job_status(job_id, 'completed', 100, f'Done! <a href="{file_url}" download style="color: #4CAF50; text-decoration: underline;">Download CSV</a>')
+        update_job_status(job_id, 'completed', 100, f'Done! Generated CSV with {total_products} products. <a href="{file_url}" download style="color: #4CAF50; text-decoration: underline;">Download CSV</a>')
         
     except Exception as e:
-        log_message(job_id, f'ERROR: {traceback.format_exc()}')
-        update_job_status(job_id, 'failed', 0, str(e))
+        error_traceback = traceback.format_exc()
+        log_message(job_id, f'ERROR: {error_traceback}')
+        update_job_status(job_id, 'failed', 0, str(e), error=error_traceback)
 
 @app.route('/api/jobs/generate-csv', methods=['POST'])
 def start_generate_csv():

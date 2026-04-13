@@ -79,9 +79,9 @@ def open_spreadsheet(client, config):
 # AI TITLE GENERATION
 # ============================================================================
 
-def generate_ai_title_from_cloudinary(public_id):
+def generate_ai_title_from_cloudinary(public_id, category='clothing'):
     """
-    Generate AI title using Cloudinary AI Captioning.
+    Generate AI title using Cloudinary AI Captioning with category context.
     Checks if captioning already exists before requesting new analysis.
     """
     try:
@@ -105,14 +105,25 @@ def generate_ai_title_from_cloudinary(public_id):
             
             if caption:
                 print(f"    DEBUG: Cached caption: {caption}")
-                title = format_caption_as_title(caption)
+                title = format_caption_as_title(caption, category) 
                 return title
         
-        # If no existing captioning, request new analysis
-        print(f"    DEBUG: No existing captioning, requesting new analysis")
+        # If no existing captioning, request new analysis with category context
+        print(f"    DEBUG: No existing captioning, requesting new analysis for {category}")
+        
+        # Strict 4-word instruction context
+        context = f"""Instructions:
+- Focus on the {category.lower()} in this image
+- EXACTLY 4 words
+- Keep it simple, premium, and fashion-forward
+- Do NOT exceed 4 words
+- Do NOT use filler words like "for", "with", "and"
+- Use commonly searched fashion terms"""
+        
         result = cloudinary.api.update(
             public_id,
-            detection="captioning"
+            detection="captioning",
+            context=context
         )
         
         # Extract detection data
@@ -126,9 +137,9 @@ def generate_ai_title_from_cloudinary(public_id):
                     caption = data.get('caption', '')
                     
                     if caption:
-                        print(f"    DEBUG: New caption: {caption}")
-                        title = format_caption_as_title(caption)
-                        return title
+                    print(f"    DEBUG: New caption: {caption}")
+                    title = format_caption_as_title(caption, category) 
+                    return title
         
         return None
         
@@ -136,52 +147,69 @@ def generate_ai_title_from_cloudinary(public_id):
         print(f"    DEBUG ERROR: {str(e)}")
         return None
 
-def format_caption_as_title(caption):
+def format_caption_as_title(caption, category):
     """
-    Convert AI caption to product title format (5-7 words).
-    Example: "A young woman wearing a vibrant red halter dress..." 
-    -> "Vibrant Red Halter Dress"
+    Extract ONLY the garment matching our category from the caption.
+    Handles multi-garment images (e.g., "black top and white pants").
     """
-    # Clean the caption
-    caption = caption.strip().lower()
+    caption_lower = caption.lower()
     
-    # Remove common filler words and photography-related terms
-    filler_words = [
-    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'of', 'in', 'on', 'at', 'to', 'for', 
-    'with', 'wearing', 'woman', 'man', 'person', 'someone', 'young', 'stands', 'against',
-    'plain', 'white', 'background', 'her', 'his', 'their', 'long', 'wavy', 'hair', 
-    'cascading', 'over', 'shoulders', 'framing', 'face', 'looking', 'posing', 'image', 'shows'
-]
+    # Map categories to their possible mentions in captions
+    category_keywords = {
+        'top': ['top', 'blouse', 'shirt', 't-shirt', 'crop top'],
+        'blouse': ['blouse', 'top', 'shirt'],
+        'dress': ['dress', 'gown'],
+        'pants': ['pants', 'trousers'],
+        'skirt': ['skirt'],
+        'one-piece': ['dress', 'jumpsuit', 'romper'],
+        'outfit set': ['outfit', 'set', 'co-ord']
+    }
     
-    # Split into words
-    words = caption.split()
+    # Get keywords for this category
+    keywords = category_keywords.get(category.lower(), [category.lower()])
     
-    # Filter out filler words, keep meaningful fashion words
-    meaningful_words = []
-    for word in words:
-        # Remove punctuation
-        clean_word = word.strip('.,;:!?')
-        if clean_word not in filler_words and len(clean_word) > 2:
-            meaningful_words.append(clean_word)
+    # Find "wearing a/an [DESCRIPTION]"
+    import re
+    wearing_match = re.search(r'wearing\s+(?:a|an)?\s*(.+?)(?:\.|$)', caption_lower)
     
-    # If we filtered too much, use original approach
-    if len(meaningful_words) < 3:
-        meaningful_words = [w for w in words if w not in ['a', 'an', 'the', 'is', 'are']]
+    if not wearing_match:
+        # Fallback to full caption
+        return extract_words_as_title(caption_lower, category)
     
-    # Take 5-7 most relevant words (prioritize adjectives and nouns)
-    if len(meaningful_words) > 7:
-        title_words = meaningful_words[:7]
-    else:
-        title_words = meaningful_words[:min(7, len(meaningful_words))]
+    wearing_text = wearing_match.group(1).strip()
     
-    # Ensure we have at least 3 words
-    if len(title_words) < 3 and len(words) >= 3:
-        title_words = words[:5]
+    # Split by "and" to handle multiple garments
+    garment_parts = re.split(r'\s+and\s+', wearing_text)
     
-    # Capitalize each word
-    title = ' '.join(word.capitalize() for word in title_words)
+    # Find the part that mentions our category
+    matching_part = None
+    for part in garment_parts:
+        for keyword in keywords:
+            if keyword in part:
+                matching_part = part
+                break
+        if matching_part:
+            break
     
-    return title
+    if not matching_part:
+        # Fallback to first part
+        matching_part = garment_parts[0]
+    
+    print(f"    DEBUG: Matching part: '{matching_part}'")
+    
+    # Extract meaningful words
+    words = matching_part.split()
+    filler = {'a', 'an', 'the', 'and', 'with'}
+    meaningful = [w.capitalize() for w in words if w not in filler and len(w) > 2]
+    
+    # Build title: [Category] + [3 descriptors]
+    title_parts = [category.capitalize()]
+    title_parts.extend(meaningful[:3])
+    
+    while len(title_parts) < 4:
+        title_parts.append('Premium')
+    
+    return ' '.join(title_parts[:4])
 
 def format_tags_as_title(tags):
     """Build title from AI tags (fallback method)"""
@@ -336,16 +364,28 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
         worksheet.batch_update(header_updates)
         print(f"  Added {len(header_updates)} missing header column(s)")
 
-    # Get list of SKUs from Image Links tab (source of truth)
+    # Get list of SKUs and Categories from Image Links tab (source of truth)
     sheet_skus = set()
+    sku_categories = {}  # SKU -> Category mapping
+    
+    # Get category column index if exists
+    category_col_idx = headers.index('Category') if 'Category' in headers else -1
     
     for row in all_values[1:]:
         if len(row) > sku_col_idx:
             sku = row[sku_col_idx].strip()
             if sku:
                 sheet_skus.add(sku)
+                
+                # Get category if column exists
+                if category_col_idx >= 0 and len(row) > category_col_idx:
+                    category = row[category_col_idx].strip()
+                    if category:
+                        sku_categories[sku] = category
     
     print(f"\nFound {len(sheet_skus)} SKU(s) in Image Links tab")
+    if sku_categories:
+        print(f"Found {len(sku_categories)} SKU(s) with category information")
 
     # Generate AI titles
     # Script will check Cloudinary to see if captioning already exists
@@ -359,9 +399,12 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
         # Skip if this SKU is not in the Image Links tab
         if sku not in sheet_skus:
             continue
+        
+        # Get category for this SKU (default to 'clothing' if not specified)
+        category = sku_categories.get(sku, 'clothing')
             
-        print(f"  {sku}: ", end='')
-        title = generate_ai_title_from_cloudinary(public_id)
+        print(f"  {sku} ({category}): ", end='')
+        title = generate_ai_title_from_cloudinary(public_id, category)
         if title:
             ai_titles[sku] = title
             print(f"'{title}'")
