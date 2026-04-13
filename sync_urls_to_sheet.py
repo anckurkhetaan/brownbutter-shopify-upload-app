@@ -105,7 +105,7 @@ def generate_ai_title_from_cloudinary(public_id, category='clothing'):
             
             if caption:
                 print(f"    DEBUG: Cached caption: {caption}")
-                title = format_caption_as_title(caption, category) 
+                title = format_caption_as_title(caption)
                 return title
         
         # If no existing captioning, request new analysis with category context
@@ -137,9 +137,9 @@ def generate_ai_title_from_cloudinary(public_id, category='clothing'):
                     caption = data.get('caption', '')
                     
                     if caption:
-                    print(f"    DEBUG: New caption: {caption}")
-                    title = format_caption_as_title(caption, category) 
-                    return title
+                        print(f"    DEBUG: New caption: {caption}")
+                        title = format_caption_as_title(caption)
+                        return title
         
         return None
         
@@ -147,69 +147,52 @@ def generate_ai_title_from_cloudinary(public_id, category='clothing'):
         print(f"    DEBUG ERROR: {str(e)}")
         return None
 
-def format_caption_as_title(caption, category):
+def format_caption_as_title(caption):
     """
-    Extract ONLY the garment matching our category from the caption.
-    Handles multi-garment images (e.g., "black top and white pants").
+    Convert AI caption to product title format (5-7 words).
+    Example: "A young woman wearing a vibrant red halter dress..." 
+    -> "Vibrant Red Halter Dress"
     """
-    caption_lower = caption.lower()
+    # Clean the caption
+    caption = caption.strip().lower()
     
-    # Map categories to their possible mentions in captions
-    category_keywords = {
-        'top': ['top', 'blouse', 'shirt', 't-shirt', 'crop top'],
-        'blouse': ['blouse', 'top', 'shirt'],
-        'dress': ['dress', 'gown'],
-        'pants': ['pants', 'trousers'],
-        'skirt': ['skirt'],
-        'one-piece': ['dress', 'jumpsuit', 'romper'],
-        'outfit set': ['outfit', 'set', 'co-ord']
-    }
+    # Remove common filler words and photography-related terms
+    filler_words = [
+        'a', 'an', 'the', 'is', 'are', 'was', 'were', 'of', 'in', 'on', 'at', 'to', 'for', 
+        'with', 'wearing', 'woman', 'man', 'person', 'someone', 'young', 'stands', 'against',
+        'plain', 'white', 'background', 'her', 'his', 'their', 'long', 'wavy', 'hair', 
+        'cascading', 'over', 'shoulders', 'framing', 'face', 'looking', 'posing'
+    ]
     
-    # Get keywords for this category
-    keywords = category_keywords.get(category.lower(), [category.lower()])
+    # Split into words
+    words = caption.split()
     
-    # Find "wearing a/an [DESCRIPTION]"
-    import re
-    wearing_match = re.search(r'wearing\s+(?:a|an)?\s*(.+?)(?:\.|$)', caption_lower)
+    # Filter out filler words, keep meaningful fashion words
+    meaningful_words = []
+    for word in words:
+        # Remove punctuation
+        clean_word = word.strip('.,;:!?')
+        if clean_word not in filler_words and len(clean_word) > 2:
+            meaningful_words.append(clean_word)
     
-    if not wearing_match:
-        # Fallback to full caption
-        return extract_words_as_title(caption_lower, category)
+    # If we filtered too much, use original approach
+    if len(meaningful_words) < 3:
+        meaningful_words = [w for w in words if w not in ['a', 'an', 'the', 'is', 'are']]
     
-    wearing_text = wearing_match.group(1).strip()
+    # Take 5-7 most relevant words (prioritize adjectives and nouns)
+    if len(meaningful_words) > 7:
+        title_words = meaningful_words[:7]
+    else:
+        title_words = meaningful_words[:min(7, len(meaningful_words))]
     
-    # Split by "and" to handle multiple garments
-    garment_parts = re.split(r'\s+and\s+', wearing_text)
+    # Ensure we have at least 3 words
+    if len(title_words) < 3 and len(words) >= 3:
+        title_words = words[:5]
     
-    # Find the part that mentions our category
-    matching_part = None
-    for part in garment_parts:
-        for keyword in keywords:
-            if keyword in part:
-                matching_part = part
-                break
-        if matching_part:
-            break
+    # Capitalize each word
+    title = ' '.join(word.capitalize() for word in title_words)
     
-    if not matching_part:
-        # Fallback to first part
-        matching_part = garment_parts[0]
-    
-    print(f"    DEBUG: Matching part: '{matching_part}'")
-    
-    # Extract meaningful words
-    words = matching_part.split()
-    filler = {'a', 'an', 'the', 'and', 'with'}
-    meaningful = [w.capitalize() for w in words if w not in filler and len(w) > 2]
-    
-    # Build title: [Category] + [3 descriptors]
-    title_parts = [category.capitalize()]
-    title_parts.extend(meaningful[:3])
-    
-    while len(title_parts) < 4:
-        title_parts.append('Premium')
-    
-    return ' '.join(title_parts[:4])
+    return title
 
 def format_tags_as_title(tags):
     """Build title from AI tags (fallback method)"""
@@ -330,7 +313,16 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
     all_values = worksheet.get_all_values()
     headers = all_values[0]
 
-    sku_col_idx = headers.index('SKU') if 'SKU' in headers else 0  # 0-based
+    # Use SKU Clean if available, fallback to SKU
+    if 'SKU Clean' in headers:
+        sku_col_idx = headers.index('SKU Clean')
+        print("  Using 'SKU Clean' column")
+    elif 'SKU' in headers:
+        sku_col_idx = headers.index('SKU')
+        print("  Using 'SKU' column (SKU Clean not found)")
+    else:
+        sku_col_idx = 0
+        print("  WARNING: Neither SKU Clean nor SKU column found, using column A")
 
     # Find or create Image_1_URL ... Image_5_URL columns + AI_Title column
     url_col_indices = {}  # 1-based image number -> 0-based col index

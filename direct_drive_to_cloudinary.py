@@ -209,7 +209,6 @@ def list_files_in_folder(drive_service, folder_id):
         print(f"  Error listing files in folder: {e}")
         return []
 
-
 def download_file_to_memory(drive_service, file_id):
     """Download a file from Google Drive to memory (BytesIO)"""
     try:
@@ -270,14 +269,15 @@ def process_direct_upload(config, sheets_client, drive_service, sheet, cloudinar
     results = []
     
     for idx, record in enumerate(tqdm(records, desc="Overall Progress")):
-        sku = record.get('SKU', '')
+        # Use SKU Clean if available, fallback to SKU
+        sku = record.get('SKU Clean', record.get('SKU', ''))
         drive_link = record.get('Drive_Folder_Link', '')
         
         if not sku or not drive_link:
             results.append({
                 'sku': sku,
                 'status': 'Failed',
-                'error': 'Missing SKU or Drive link',
+                'error': 'Missing SKU Clean or Drive link',
                 'image_count': 0,
                 'urls': []
             })
@@ -313,9 +313,6 @@ def process_direct_upload(config, sheets_client, drive_service, sheet, cloudinar
             })
             continue
         
-        # Sort files by name to ensure _01, _02, _03 order
-        files.sort(key=lambda x: x['name'])
-
         print(f"  Found {len(files)} image(s)")
         
         # Process each image: Download → Upload → Delete from memory

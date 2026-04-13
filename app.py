@@ -231,6 +231,62 @@ def cancel_job(job_id):
         return jsonify({'error': 'Job not found'}), 404
 
 # ============================================================================
+# JOB 0: CLEAN SKUs
+# ============================================================================
+
+def run_clean_skus(job_id, sheet_name):
+    """Background task: Clean SKUs and update SKU Clean column"""
+    try:
+        update_job_status(job_id, 'running', 10, 'Starting...')
+        
+        import clean_skus as clean_script
+        
+        config = clean_script.load_config()
+        
+        update_job_status(job_id, 'running', 30, 'Authenticating...')
+        client = clean_script.authenticate_sheets(config)
+        sheet = clean_script.open_spreadsheet(client, config)
+        
+        update_job_status(job_id, 'running', 50, 'Cleaning SKUs...')
+        clean_script.clean_skus_in_sheet(sheet, config)
+        
+        update_job_status(job_id, 'completed', 100, 'Done! SKUs cleaned and updated in Column B')
+        
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        log_message(job_id, f'ERROR: {error_traceback}')
+        update_job_status(job_id, 'failed', 0, str(e), error=error_traceback)
+
+@app.route('/api/jobs/clean-skus', methods=['POST'])
+def start_clean_skus():
+    """Start clean SKUs job"""
+    try:
+        data = request.json
+        sheet_name = data.get('sheet_name')
+        
+        if not sheet_name:
+            return jsonify({'error': 'sheet_name required'}), 400
+        
+        job_id = f"clean_skus_{int(time.time())}"
+        
+        # Start background thread
+        thread = threading.Thread(target=run_clean_skus, args=(job_id, sheet_name))
+        thread.daemon = True
+        thread.start()
+        
+        job_threads[job_id] = thread
+        job_cancelled[job_id] = False
+        
+        return jsonify({
+            'job_id': job_id,
+            'status': 'started',
+            'message': 'SKU cleaning job started'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================================
 # JOB 1: DRIVE TO CLOUDINARY
 # ============================================================================
 

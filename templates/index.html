@@ -84,6 +84,18 @@
     <h1>BrownButter Shopify Upload App</h1>
     
     <div class="job-card">
+        <h2>0. Clean SKUs</h2>
+        <p>Removes /n, spaces, hyphens, and special characters from SKUs → Updates 'SKU Clean' column</p>
+        <div>
+            <button id="btn-0" onclick="startJob('clean-skus', 0)">Clean SKUs</button>
+            <button id="stop-0" class="stop-btn" onclick="stopJob(0)" style="display:none;">Stop</button>
+        </div>
+        <div id="progress-bar-0" class="progress-bar"><div id="progress-fill-0" class="progress-fill">0%</div></div>
+        <div id="status-0" class="status"></div>
+        <div id="logs-0" class="logs"></div>
+    </div>
+    
+    <div class="job-card">
         <h2>1. Upload Images (Drive → Cloudinary)</h2>
         <p>Downloads images from Google Drive and uploads to Cloudinary</p>
         <div>
