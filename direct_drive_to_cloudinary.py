@@ -209,6 +209,7 @@ def list_files_in_folder(drive_service, folder_id):
         print(f"  Error listing files in folder: {e}")
         return []
 
+
 def download_file_to_memory(drive_service, file_id):
     """Download a file from Google Drive to memory (BytesIO)"""
     try:
@@ -312,6 +313,9 @@ def process_direct_upload(config, sheets_client, drive_service, sheet, cloudinar
             })
             continue
         
+        # Sort files by name to ensure _01, _02, _03 order
+        files.sort(key=lambda x: x['name'])
+
         print(f"  Found {len(files)} image(s)")
         
         # Process each image: Download → Upload → Delete from memory
