@@ -7,6 +7,7 @@ Use this when you want to update titles with category context
 
 import os
 import sys
+import json
 import yaml
 import gspread
 from google.oauth2.service_account import Credentials
@@ -53,12 +54,25 @@ def setup_cloudinary(config):
 
 def authenticate_sheets(config):
     try:
-        creds_file = config['google_sheets']['credentials_file']
+        # Check if running on Render (environment variable)
+        google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+        
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
-        creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
+        
+        if google_creds_json:
+            # Render deployment - use environment variable
+            print("Using GOOGLE_CREDENTIALS_JSON from environment")
+            creds_dict = json.loads(google_creds_json)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        else:
+            # Local - use file
+            creds_file = config['google_sheets']['credentials_file']
+            print(f"Using credentials file: {creds_file}")
+            creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
+        
         client = gspread.authorize(creds)
         print("Authenticated with Google Sheets")
         return client

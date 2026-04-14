@@ -7,6 +7,7 @@ No local storage needed - everything in memory
 
 import os
 import sys
+import json
 import yaml
 import gspread
 from google.oauth2.service_account import Credentials
@@ -42,18 +43,27 @@ def load_config():
 def authenticate_google_services(config):
     """Authenticate with Google Drive and Sheets APIs"""
     try:
-        creds_file = config['google_sheets']['credentials_file']
-        
-        if not os.path.exists(creds_file):
-            print(f"Error: {creds_file} not found!")
-            sys.exit(1)
+        # Check if running on Render (environment variable)
+        google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
         
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
         
-        creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
+        if google_creds_json:
+            # Render deployment - use environment variable
+            print("Using GOOGLE_CREDENTIALS_JSON from environment")
+            creds_dict = json.loads(google_creds_json)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        else:
+            # Local - use file
+            creds_file = config['google_sheets']['credentials_file']
+            if not os.path.exists(creds_file):
+                print(f"Error: {creds_file} not found!")
+                sys.exit(1)
+            print(f"Using credentials file: {creds_file}")
+            creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
         
         # Google Sheets client
         sheets_client = gspread.authorize(creds)

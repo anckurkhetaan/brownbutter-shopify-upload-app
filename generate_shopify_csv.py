@@ -6,6 +6,7 @@ Generates Shopify-compliant CSV with metafields and AI-generated titles
 
 import os
 import sys
+import json
 import yaml
 import gspread
 from google.oauth2.service_account import Credentials
@@ -37,16 +38,26 @@ def load_config():
 def authenticate_sheets(config):
     """Authenticate with Google Sheets API"""
     try:
-        creds_file = config['google_sheets']['credentials_file']
+        # Check if running on Render (environment variable)
+        google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
         
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
         
-        creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
-        client = gspread.authorize(creds)
+        if google_creds_json:
+            # Render deployment - use environment variable
+            print("Using GOOGLE_CREDENTIALS_JSON from environment")
+            creds_dict = json.loads(google_creds_json)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        else:
+            # Local - use file
+            creds_file = config['google_sheets']['credentials_file']
+            print(f"Using credentials file: {creds_file}")
+            creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
         
+        client = gspread.authorize(creds)
         print("Authenticated with Google Sheets")
         return client
         
@@ -197,9 +208,6 @@ def get_shopify_category(gender, category, config):
     full_key = f"{gender_key}_{category_key}"
     
     categories = config.get('shopify_categories', {})
-    if categories is None:
-        print(f"ERROR: shopify_categories not found in config!")
-        return ''
     return categories.get(full_key, '')
 
 def generate_sku(product_code, size_index):
@@ -244,9 +252,7 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     
     category = get_shopify_category(product['Gender'], product['Category'], config)
     tags = get_tags(full_key, product['Gender'], config)
-    print(f"  DEBUG: Generated key = '{normalize_category_key(product['Gender'])}_{normalize_category_key(product['Category'])}'")
-    print(f"  DEBUG: Returned category = '{category}'")
-
+    
     # Pricing
     price = product.get('Price_After_Discount', 0)
     compare_price = product.get('MRP_Compare_At_Price', 0)
@@ -410,9 +416,8 @@ def main():
     
     # Save CSV
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"static/downloads/Shopify_Upload_{timestamp}.csv"
+    output_file = f"shopify_upload_{timestamp}.csv"
     shopify_df.to_csv(output_file, index=False)
-    return output_file  # Return the file path
     
     print("\n" + "=" * 70)
     print("CSV GENERATION COMPLETE")
