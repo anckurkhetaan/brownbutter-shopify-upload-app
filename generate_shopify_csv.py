@@ -89,12 +89,8 @@ def get_product_data(sheet, config):
         df = pd.DataFrame(records)
         
         # Use SKU Clean if available, fallback to SKU
-        if 'SKU Clean' in df.columns:
-            df['SKU'] = df['SKU Clean']
-            print(f"Using 'SKU Clean' column for product matching")
-        elif 'SKU' in df.columns:
-            print(f"Using 'SKU' column (SKU Clean not found)")
-        
+        print(f"Loaded {len(records)} products from '{tab_name}' tab")
+        return df
         print(f"Loaded {len(records)} products from '{tab_name}' tab")
         return df
         
@@ -110,12 +106,7 @@ def get_image_urls(sheet, config):
         records = worksheet.get_all_records()
         df = pd.DataFrame(records)
         
-        # Use SKU Clean if available, fallback to SKU
-        if 'SKU Clean' in df.columns:
-            df['SKU'] = df['SKU Clean']
-            print(f"Using 'SKU Clean' column for image matching")
-        elif 'SKU' in df.columns:
-            print(f"Using 'SKU' column (SKU Clean not found)")
+        # Use SKU Clean
         
         print(f"Loaded {len(records)} image mappings from '{tab_name}' tab")
         return df
@@ -133,19 +124,15 @@ def get_ai_titles(sheet, config):
         
         df = pd.DataFrame(records)
         
-        # Use SKU Clean if available, fallback to SKU
-        if 'SKU Clean' in df.columns:
-            df['SKU'] = df['SKU Clean']
-            print(f"Using 'SKU Clean' column for AI title matching")
-        
+        # Use SKU Clean if available
         # Check if Image_1_Title column exists
         if 'Image_1_Title' in df.columns:
             print(f"Loaded {len(df)} AI titles from '{tab_name}' tab")
-            return df[['SKU', 'Image_1_Title']].rename(columns={'Image_1_Title': 'AI_Title'})
+            return df[['SKU Clean', 'Image_1_Title']].rename(columns={'Image_1_Title': 'AI_Title'})
         # Fallback to AI_Title if exists
         elif 'AI_Title' in df.columns:
             print(f"Loaded {len(df)} AI titles from '{tab_name}' tab (AI_Title column)")
-            return df[['SKU', 'AI_Title']]
+            return df[['SKU Clean', 'AI_Title']]
         else:
             print(f"Warning: 'Image_1_Title' column not found in '{tab_name}' - will use generated titles")
             return pd.DataFrame()
@@ -343,8 +330,8 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
             'Option3 Name': '',
             'Option3 Value': '',
             'Option3 Linked To': '',
-            'Variant SKU': generate_sku(product['Product_Code'], size_idx + 1),
-            'Variant Grams': defaults.get('weight_grams', 500),
+            'Variant SKU': generate_sku(product['SKU Clean'], size_idx + 1),
+            'Variant Grams': defaults.get('weight_grams', 0),
             'Variant Inventory Tracker': 'shopify',
             'Variant Inventory Qty': defaults.get('inventory_per_size', 5),
             'Variant Inventory Policy': 'deny' if defaults.get('inventory_policy', 'deny') == 'deny' else 'continue',

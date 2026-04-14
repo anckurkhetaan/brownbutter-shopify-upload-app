@@ -485,9 +485,14 @@ def run_generate_csv(job_id, sheet_name):
             return
         
         csv_file = csv_script.main()
-        file_url = f"/{csv_file}"
-        
-        update_job_status(job_id, 'completed', 100, f'Done! Generated CSV with {total_products} products. <a href="{file_url}" download style="color: #4CAF50; text-decoration: underline;">Download CSV</a>')
+
+        if csv_file and os.path.exists(csv_file):
+            file_url = f"/{csv_file}"
+            log_message(job_id, f'CSV saved to: {csv_file}')
+            update_job_status(job_id, 'completed', 100, f'Done! Generated CSV with {total_products} products. <a href="{file_url}" download style="color: #4CAF50; text-decoration: underline;">Download CSV</a>')
+        else:
+            log_message(job_id, f'ERROR: CSV file not created')
+            update_job_status(job_id, 'failed', 0, 'CSV generation failed - file not created')    
         
     except Exception as e:
         error_traceback = traceback.format_exc()
