@@ -351,21 +351,27 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
             'Gift Card': 'FALSE',
             'SEO Title': seo_title if size_idx == 0 else '',
             'SEO Description': seo_description if size_idx == 0 else '',
+            'Top Style (product.metafields.custom.top_style)': '',
             'Age group (product.metafields.shopify.age-group)': age_group if size_idx == 0 else '',
             'Color (product.metafields.shopify.color-pattern)': color_metafield if size_idx == 0 else '',
             'Costume theme (product.metafields.shopify.costume-theme)': '',
             'Dress occasion (product.metafields.shopify.dress-occasion)': 'casual; everyday' if size_idx == 0 else '',
             'Dress style (product.metafields.shopify.dress-style)': '',
             'Fabric (product.metafields.shopify.fabric)': fabric_metafield if size_idx == 0 else '',
+            'Neckline (product.metafields.shopify.neckline)': '',
             'Size (product.metafields.shopify.size)': size_metafield if size_idx == 0 else '',
             'Skirt/Dress length type (product.metafields.shopify.skirt-dress-length-type)': '',
             'Sleeve length type (product.metafields.shopify.sleeve-length-type)': '',
             'Target gender (product.metafields.shopify.target-gender)': target_gender if size_idx == 0 else '',
+            'Complementary products (product.metafields.shopify--discovery--product_recommendation.complementary_products)': '',
+            'Related products (product.metafields.shopify--discovery--product_recommendation.related_products)': '',
+            'Related products settings (product.metafields.shopify--discovery--product_recommendation.related_products_display)': '',
+            'Search product boosts (product.metafields.shopify--discovery--product_search_boost.queries)': '',
             'Variant Image': '',
             'Variant Weight Unit': 'kg',
             'Variant Tax Code': '',
             'Cost per item': cost_per_item if size_idx == 0 else '',
-            'Status': defaults.get('status', 'active')
+            'Status': 'active'  # Always active
         }
         
         rows.append(row)
