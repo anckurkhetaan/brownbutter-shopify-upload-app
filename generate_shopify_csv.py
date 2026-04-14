@@ -22,7 +22,15 @@ from datetime import datetime
 def load_config():
     """Load configuration from config.yaml"""
     try:
-        with open('config.yaml', 'r') as f:
+        # Check if running on Render (Secret File)
+        if os.path.exists('/etc/secrets/config.yaml'):
+            config_path = '/etc/secrets/config.yaml'
+            print("Using config.yaml from Secret File (Render)")
+        else:
+            config_path = 'config.yaml'
+            print("Using local config.yaml")
+        
+        with open(config_path, 'r') as f:
             return yaml.safe_load(f)
     except FileNotFoundError:
         print("Error: config.yaml not found!")
@@ -284,7 +292,8 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     age_group = metafields.get('age_group', 'adults')
     color_metafield = product.get('Color', 'blue')
     fabric_metafield = product.get('Material', 'polyester')
-    target_gender = product['Gender'].lower() if product.get('Gender') else 'female'
+    gender_value = product.get('Gender', '').lower()
+    target_gender = 'female' if gender_value == 'women' else 'male' if gender_value == 'men' else 'female'
     size_metafield = get_size_metafield_value(sizes)
     
     # Get image URLs for this SKU
@@ -323,7 +332,7 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
             'Published': 'TRUE' if defaults.get('published', True) else 'FALSE',
             'Option1 Name': 'Size',
             'Option1 Value': size,
-            'Option1 Linked To': 'product.metafields.shopify.size',
+            'Option1 Linked To': 'product.metafields.shopify.size' if size_idx == 0 else '',
             'Option2 Name': '',
             'Option2 Value': '',
             'Option2 Linked To': '',
@@ -331,7 +340,7 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
             'Option3 Value': '',
             'Option3 Linked To': '',
             'Variant SKU': generate_sku(product['SKU Clean'], size_idx + 1),
-            'Variant Grams': defaults.get('weight_grams', 0),
+            'Variant Grams': 0,
             'Variant Inventory Tracker': 'shopify',
             'Variant Inventory Qty': defaults.get('inventory_per_size', 5),
             'Variant Inventory Policy': 'deny' if defaults.get('inventory_policy', 'deny') == 'deny' else 'continue',
