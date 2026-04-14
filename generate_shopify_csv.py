@@ -244,11 +244,11 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     metafields = config.get('metafields', {})
     
     # Product basic info
-    sku = product['SKU']
+    sku = product['SKU Clean']
     
     # Get AI title if available, otherwise use fallback
-    if not ai_title_data.empty and sku in ai_title_data['SKU'].values:
-        ai_row = ai_title_data[ai_title_data['SKU'] == sku].iloc[0]
+    if not ai_title_data.empty and sku in ai_title_data['SKU Clean'].values:
+        ai_row = ai_title_data[ai_title_data['SKU Clean'] == sku].iloc[0]
         title = ai_row.get('AI_Title', '') if pd.notna(ai_row.get('AI_Title')) else generate_fallback_title(product['Category'], product['Color'])
     else:
         title = generate_fallback_title(product['Category'], product['Color'])
@@ -289,8 +289,8 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     
     # Get image URLs for this SKU
     image_urls = []
-    if not image_data.empty and sku in image_data['SKU'].values:
-        img_row = image_data[image_data['SKU'] == sku].iloc[0]
+    if not image_data.empty and sku in image_data['SKU Clean'].values:
+        img_row = image_data[image_data['SKU Clean'] == sku].iloc[0]
         for i in range(1, 6):
             url_col = f'Image_{i}_URL'
             if url_col in img_row.index:
@@ -382,7 +382,7 @@ def generate_csv(product_df, image_df, ai_title_df, config):
     all_rows = []
     
     for idx, (_, product) in enumerate(product_df.iterrows()):
-        sku = product['SKU']
+        sku = product['SKU Clean']
         print(f"Processing {idx+1}/{len(product_df)}: {sku}")
         
         # Generate rows for this product
@@ -427,9 +427,16 @@ def main():
     shopify_df = generate_csv(product_df, image_df, ai_title_df, config)
     
     # Save CSV
+    os.makedirs('static/downloads', exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"shopify_upload_{timestamp}.csv"
+    output_file = f"static/downloads/shopify_upload_{timestamp}.csv"
     shopify_df.to_csv(output_file, index=False)
+
+    print(f"\n{'='*70}")
+    print(f"CSV SAVED: {output_file}")
+    print(f"{'='*70}")
+
+    return output_file  # ← ADD THIS LINE!
     
     print("\n" + "=" * 70)
     print("CSV GENERATION COMPLETE")
