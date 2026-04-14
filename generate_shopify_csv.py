@@ -86,9 +86,17 @@ def get_product_data(sheet, config):
         tab_name = config['google_sheets']['tabs']['product_data']
         worksheet = sheet.worksheet(tab_name)
         records = worksheet.get_all_records()
+        df = pd.DataFrame(records)
+        
+        # Use SKU Clean if available, fallback to SKU
+        if 'SKU Clean' in df.columns:
+            df['SKU'] = df['SKU Clean']
+            print(f"Using 'SKU Clean' column for product matching")
+        elif 'SKU' in df.columns:
+            print(f"Using 'SKU' column (SKU Clean not found)")
         
         print(f"Loaded {len(records)} products from '{tab_name}' tab")
-        return pd.DataFrame(records)
+        return df
         
     except Exception as e:
         print(f"Error reading product data: {e}")
@@ -100,9 +108,17 @@ def get_image_urls(sheet, config):
         tab_name = config['google_sheets']['tabs']['image_links']
         worksheet = sheet.worksheet(tab_name)
         records = worksheet.get_all_records()
+        df = pd.DataFrame(records)
+        
+        # Use SKU Clean if available, fallback to SKU
+        if 'SKU Clean' in df.columns:
+            df['SKU'] = df['SKU Clean']
+            print(f"Using 'SKU Clean' column for image matching")
+        elif 'SKU' in df.columns:
+            print(f"Using 'SKU' column (SKU Clean not found)")
         
         print(f"Loaded {len(records)} image mappings from '{tab_name}' tab")
-        return pd.DataFrame(records)
+        return df
         
     except Exception as e:
         print(f"Error reading image URLs: {e}")
@@ -116,6 +132,11 @@ def get_ai_titles(sheet, config):
         records = worksheet.get_all_records()
         
         df = pd.DataFrame(records)
+        
+        # Use SKU Clean if available, fallback to SKU
+        if 'SKU Clean' in df.columns:
+            df['SKU'] = df['SKU Clean']
+            print(f"Using 'SKU Clean' column for AI title matching")
         
         # Check if Image_1_Title column exists
         if 'Image_1_Title' in df.columns:
@@ -207,7 +228,11 @@ def get_shopify_category(gender, category, config):
     category_key = normalize_category_key(category)
     full_key = f"{gender_key}_{category_key}"
     
-    categories = config.get('shopify_categories', {})
+    categories = config.get('shopify_categories')
+    if categories is None:
+        print(f"WARNING: shopify_categories not found in config for key '{full_key}'")
+        return ''
+    
     return categories.get(full_key, '')
 
 def generate_sku(product_code, size_index):
