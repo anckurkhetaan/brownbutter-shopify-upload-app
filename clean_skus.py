@@ -5,10 +5,12 @@ Cleans SKU values by replacing /n, hyphens, spaces with underscores
 Updates Column B (SKU Clean) in Image Links tab
 """
 
+import os
+import sys
+import json
 import yaml
 import gspread
 from google.oauth2.service_account import Credentials
-import sys
 import re
 
 def load_config():
