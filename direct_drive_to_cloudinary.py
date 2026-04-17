@@ -213,6 +213,13 @@ def list_files_in_folder(drive_service, folder_id):
             if f['mimeType'].startswith('image/')
         ]
         
+        import re
+        def natural_sort_key(filename):
+            parts = re.split(r'(\d+)', filename.lower())
+            return [int(part) if part.isdigit() else part for part in parts]
+        
+        image_files.sort(key=lambda x: natural_sort_key(x['name']))
+        
         return image_files
         
     except Exception as e:
