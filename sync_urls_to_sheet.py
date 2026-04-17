@@ -421,9 +421,9 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
     # print("UPDATING URLS AND TITLES")
     # print("=" * 70)
     
-    # batch = []
-    # updated = 0
-    # no_cloudinary_data = 0
+    batch = []
+    updated = 0
+    no_cloudinary_data = 0
 
     for row_idx, row in enumerate(all_values[1:], start=2):  # row_idx is 1-based sheet row
         if len(row) <= sku_col_idx:
