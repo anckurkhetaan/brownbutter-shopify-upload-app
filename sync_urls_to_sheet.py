@@ -387,13 +387,15 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
     if sku_categories:
         print(f"Found {len(sku_categories)} SKU(s) with category information")
 
-    # # Generate AI titles
+    # Skip AI title generation to avoid Cloudinary API limits
+    ai_titles = {}  # Empty dict - no titles generated
+    print("\nSkipping AI title generation (Cloudinary API limit)")
+
+    # # Generate AI titles (COMMENTED OUT - CLOUDINARY API LIMIT)
     # # Script will check Cloudinary to see if captioning already exists
     # print("\n" + "=" * 70)
     # print("GENERATING AI TITLES (Main Images Only)")
     # print("=" * 70)
-    
-    # ai_titles = {}  # SKU -> title
     
     # for sku, public_id in sku_public_ids.items():
     #     # Skip if this SKU is not in the Image Links tab
@@ -416,10 +418,10 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
     
     # print(f"\nGenerated {len(ai_titles)} AI title(s)")
 
-    # # Build batch updates by iterating sheet rows (sheet is source of truth)
-    # print("\n" + "=" * 70)
-    # print("UPDATING URLS AND TITLES")
-    # print("=" * 70)
+    # Build batch updates by iterating sheet rows (sheet is source of truth)
+    print("\n" + "=" * 70)
+    print("UPDATING URLS")
+    print("=" * 70)
     
     batch = []
     updated = 0
