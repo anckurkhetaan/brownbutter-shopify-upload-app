@@ -387,43 +387,43 @@ def update_sheet_with_urls(sheet, config, sku_url_map, sku_public_ids):
     if sku_categories:
         print(f"Found {len(sku_categories)} SKU(s) with category information")
 
-    # Generate AI titles
-    # Script will check Cloudinary to see if captioning already exists
-    print("\n" + "=" * 70)
-    print("GENERATING AI TITLES (Main Images Only)")
-    print("=" * 70)
+    # # Generate AI titles
+    # # Script will check Cloudinary to see if captioning already exists
+    # print("\n" + "=" * 70)
+    # print("GENERATING AI TITLES (Main Images Only)")
+    # print("=" * 70)
     
-    ai_titles = {}  # SKU -> title
+    # ai_titles = {}  # SKU -> title
     
-    for sku, public_id in sku_public_ids.items():
-        # Skip if this SKU is not in the Image Links tab
-        if sku not in sheet_skus:
-            continue
+    # for sku, public_id in sku_public_ids.items():
+    #     # Skip if this SKU is not in the Image Links tab
+    #     if sku not in sheet_skus:
+    #         continue
         
-        # Get category for this SKU (default to 'clothing' if not specified)
-        category = sku_categories.get(sku, 'clothing')
+    #     # Get category for this SKU (default to 'clothing' if not specified)
+    #     category = sku_categories.get(sku, 'clothing')
             
-        print(f"  {sku} ({category}): ", end='')
-        title = generate_ai_title_from_cloudinary(public_id, category)
-        if title:
-            ai_titles[sku] = title
-            print(f"'{title}'")
-        else:
-            print("Failed (will use fallback)")
+    #     print(f"  {sku} ({category}): ", end='')
+    #     title = generate_ai_title_from_cloudinary(public_id, category)
+    #     if title:
+    #         ai_titles[sku] = title
+    #         print(f"'{title}'")
+    #     else:
+    #         print("Failed (will use fallback)")
         
-        # Small delay to respect rate limits
-        time.sleep(0.3)
+    #     # Small delay to respect rate limits
+    #     time.sleep(0.3)
     
-    print(f"\nGenerated {len(ai_titles)} AI title(s)")
+    # print(f"\nGenerated {len(ai_titles)} AI title(s)")
 
-    # Build batch updates by iterating sheet rows (sheet is source of truth)
-    print("\n" + "=" * 70)
-    print("UPDATING URLS AND TITLES")
-    print("=" * 70)
+    # # Build batch updates by iterating sheet rows (sheet is source of truth)
+    # print("\n" + "=" * 70)
+    # print("UPDATING URLS AND TITLES")
+    # print("=" * 70)
     
-    batch = []
-    updated = 0
-    no_cloudinary_data = 0
+    # batch = []
+    # updated = 0
+    # no_cloudinary_data = 0
 
     for row_idx, row in enumerate(all_values[1:], start=2):  # row_idx is 1-based sheet row
         if len(row) <= sku_col_idx:
