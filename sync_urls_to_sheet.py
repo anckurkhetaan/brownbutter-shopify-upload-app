@@ -22,8 +22,17 @@ import time
 # ============================================================================
 
 def load_config():
+    """Load configuration from config.yaml"""
     try:
-        with open('config.yaml', 'r') as f:
+        # Check if running on Render (Secret File)
+        if os.path.exists('/etc/secrets/config.yaml'):
+            config_path = '/etc/secrets/config.yaml'
+            print("Using config.yaml from Secret File (Render)")
+        else:
+            config_path = 'config.yaml'
+            print("Using local config.yaml")
+        
+        with open(config_path, 'r') as f:
             return yaml.safe_load(f)
     except FileNotFoundError:
         print("Error: config.yaml not found!")
@@ -95,11 +104,11 @@ def open_spreadsheet(client, config):
 
 def generate_ai_title_from_cloudinary(public_id, category='clothing'):
     """
-    Generate AI title using Cloudinary AI Captioning with category context.
-    Checks if captioning already exists before requesting new analysis.
+    Fetch full AI caption from Cloudinary without processing.
+    Returns the raw caption for manual editing in Google Sheets.
     """
     try:
-        print(f"\n    DEBUG: Checking {public_id}")
+        print(f"\n    Fetching caption for {public_id}")
         
         # First, check if captioning already exists
         check_result = cloudinary.api.resource(
@@ -113,52 +122,37 @@ def generate_ai_title_from_cloudinary(public_id, category='clothing'):
         existing_captioning = existing_detection.get('captioning', {})
         
         if existing_captioning and existing_captioning.get('status') == 'complete':
-            print(f"    DEBUG: Captioning already exists, using cached data")
+            print(f"    Captioning already exists, using cached")
             data = existing_captioning.get('data', {})
             caption = data.get('caption', '')
             
             if caption:
-                print(f"    DEBUG: Cached caption: {caption}")
-                title = format_caption_as_title(caption)
-                return title
+                print(f"    Caption: {caption[:80]}...")
+                return caption  # Return raw caption as-is
         
-        # If no existing captioning, request new analysis with category context
-        print(f"    DEBUG: No existing captioning, requesting new analysis for {category}")
-        
-        # Strict 4-word instruction context
-        context = f"""Instructions:
-- Focus on the {category.lower()} in this image
-- EXACTLY 4 words
-- Keep it simple, premium, and fashion-forward
-- Do NOT exceed 4 words
-- Do NOT use filler words like "for", "with", "and"
-- Use commonly searched fashion terms"""
-        
+        # If no existing captioning, request new analysis
+        print(f"    Requesting new caption...")
         result = cloudinary.api.update(
             public_id,
             detection="captioning",
-            context=context
+            invalidate=False  # Use cache if available
         )
         
-        # Extract detection data
+        # Extract caption
         info = result.get('info', {})
-        if info:
-            detection = info.get('detection', {})
-            if detection:
-                captioning_data = detection.get('captioning', {})
-                if captioning_data:
-                    data = captioning_data.get('data', {})
-                    caption = data.get('caption', '')
-                    
-                    if caption:
-                        print(f"    DEBUG: New caption: {caption}")
-                        title = format_caption_as_title(caption)
-                        return title
+        detection = info.get('detection', {})
+        captioning_data = detection.get('captioning', {})
+        data = captioning_data.get('data', {})
+        caption = data.get('caption', '')
+        
+        if caption:
+            print(f"    Caption: {caption[:80]}...")
+            return caption  # Return raw caption as-is
         
         return None
         
     except Exception as e:
-        print(f"    DEBUG ERROR: {str(e)}")
+        print(f"    ERROR: {str(e)}")
         return None
 
 def format_caption_as_title(caption):
