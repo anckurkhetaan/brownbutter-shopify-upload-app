@@ -335,7 +335,7 @@ def process_direct_upload(config, sheets_client, drive_service, sheet, cloudinar
         # Process each image: Download → Upload → Delete from memory
         uploaded_urls = []
         for img_num, file in enumerate(files, 1):
-            print(f"    Processing {file['name']}...", end=' ')
+            print(f"    Processing {file['name']}...")
             
             # Download to memory
             file_buffer = download_file_to_memory(drive_service, file['id'])
@@ -352,7 +352,7 @@ def process_direct_upload(config, sheets_client, drive_service, sheet, cloudinar
                 
                 if url:
                     uploaded_urls.append(url)
-                    print(f"Uploaded as {public_id}.jpg")
+                    print(f"    Uploaded as {public_id}.jpg")
                 else:
                     print(f"Upload failed")
             else:

@@ -21,6 +21,7 @@ from googleapiclient.discovery import build
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+import fashion_tagging
 
 app = Flask(__name__)
 
@@ -292,62 +293,63 @@ def start_clean_skus():
 
 def run_drive_to_cloudinary(job_id, sheet_name):
     """Background task: Upload from Drive to Cloudinary with detailed progress"""
+    
+    # Capture stdout to send prints to frontend
+    import io
+    from contextlib import redirect_stdout
+    
+    class LogCapture:
+        def __init__(self, job_id):
+            self.job_id = job_id
+        def write(self, message):
+            if message.strip():
+                log_message(self.job_id, message.strip())
+        def flush(self):
+            pass
+    
     try:
         update_job_status(job_id, 'running', 5, 'Initializing...')
         
-        if check_cancelled(job_id):
-            return
-        
-        # Import modules
-        import direct_drive_to_cloudinary as upload_script
-        
-        update_job_status(job_id, 'running', 10, 'Authenticating with Google...')
-        config = upload_script.load_config()
-        sheets_client, drive_service = upload_script.authenticate_google_services(config)
-        cloudinary_folder = upload_script.setup_cloudinary(config)
-        
-        if check_cancelled(job_id):
-            return
-        
-        update_job_status(job_id, 'running', 20, 'Opening spreadsheet...')
-        sheet = upload_script.open_spreadsheet(sheets_client, config)
-        
-        # Get product list first for progress tracking
-        worksheet, records = upload_script.get_image_links_data(sheet, config)
-        total_products = len(records)
-        
-        update_job_status(job_id, 'running', 30, f'Found {total_products} products to process')
-        
-        # Process with progress updates
-        log_message(job_id, f'Starting upload for {total_products} products...')
-        
-        # We'll manually process to add cancellation checks
-        results = []
-        for idx, record in enumerate(records):
+        # Redirect all prints to log_message
+        with redirect_stdout(LogCapture(job_id)):
+            
             if check_cancelled(job_id):
-                log_message(job_id, 'Job cancelled - stopping upload')
                 return
             
-            sku = record.get('SKU', '')
-            progress = 30 + int((idx / total_products) * 60)  # 30% to 90%
+            # Import modules
+            import direct_drive_to_cloudinary as upload_script
             
-            log_message(job_id, f'[{idx+1}/{total_products}] Processing SKU: {sku}')
-            update_job_status(job_id, 'running', progress, f'Processing {sku} ({idx+1}/{total_products})')
+            update_job_status(job_id, 'running', 10, 'Authenticating with Google...')
+            config = upload_script.load_config()
+            sheets_client, drive_service = upload_script.authenticate_google_services(config)
+            cloudinary_folder = upload_script.setup_cloudinary(config)
             
-            # Process this SKU (simplified - you may need to import the actual logic)
-            # For now, call the full function and track
-        
-        # Call the actual processing
-        results = upload_script.process_direct_upload(config, sheets_client, drive_service, sheet, cloudinary_folder)
-        
-        if check_cancelled(job_id):
-            return
-        
-        # Count results
-        success = sum(1 for r in results if r['status'] == 'Done')
-        failed = sum(1 for r in results if r['status'] == 'Failed')
-        
-        update_job_status(job_id, 'completed', 100, f'Complete! ✓ {success} succeeded, ✗ {failed} failed')
+            if check_cancelled(job_id):
+                return
+            
+            update_job_status(job_id, 'running', 20, 'Opening spreadsheet...')
+            sheet = upload_script.open_spreadsheet(sheets_client, config)
+            
+            # Get product list first for progress tracking
+            worksheet, records = upload_script.get_image_links_data(sheet, config)
+            total_products = len(records)
+            
+            update_job_status(job_id, 'running', 30, f'Found {total_products} products to process')
+            
+            # Process with progress updates
+            log_message(job_id, f'Starting upload for {total_products} products...')
+            
+            # Call the actual processing
+            results = upload_script.process_direct_upload(config, sheets_client, drive_service, sheet, cloudinary_folder)
+            
+            if check_cancelled(job_id):
+                return
+            
+            # Count results
+            success = sum(1 for r in results if r['status'] == 'Done')
+            failed = sum(1 for r in results if r['status'] == 'Failed')
+            
+            update_job_status(job_id, 'completed', 100, f'Complete! ✓ {success} succeeded, ✗ {failed} failed')
         
     except Exception as e:
         error_msg = f"Error: {str(e)}"
@@ -449,7 +451,112 @@ def start_sync_urls():
         return jsonify({'error': str(e)}), 500
 
 # ============================================================================
-# JOB 3: GENERATE SHOPIFY CSV
+# JOB 3: FASHION TAGGING
+# ============================================================================
+
+def run_fashion_tagging(job_id, sheet_name):
+    """Background task: Generate fashion tags, titles, descriptions"""
+    
+    try:
+        update_job_status(job_id, 'running', 5, 'Initializing...')
+        
+        if check_cancelled(job_id):
+            return
+        
+        # Import modules
+        config = fashion_tagging.load_config()
+        
+        update_job_status(job_id, 'running', 10, 'Authenticating...')
+        sheets_client = fashion_tagging.authenticate_sheets(config)
+        sheet = fashion_tagging.open_spreadsheet(sheets_client, config)
+        
+        if check_cancelled(job_id):
+            return
+        
+        update_job_status(job_id, 'running', 20, 'Loading products...')
+        
+        # Get product count for progress
+        products_df, _ = fashion_tagging.get_products_to_tag(sheet, config)
+        total_products = len(products_df)
+        
+        # Estimate cost
+        estimated_cost = fashion_tagging.estimate_cost(total_products, config)
+        
+        update_job_status(job_id, 'running', 30, f'Processing {total_products} products (Est. cost: ${estimated_cost})')
+        
+        if check_cancelled(job_id):
+            return
+        
+        # Process with custom progress updates
+        log_message(job_id, f'Starting fashion tagging for {total_products} products...')
+        
+        # Run the actual processing
+        result = fashion_tagging.process_fashion_tagging(config, sheets_client, sheet)
+        
+        if check_cancelled(job_id):
+            return
+        
+        # Final status
+        success = result.get('success', 0)
+        failed = result.get('failed', 0)
+        cost = result.get('cost', 0)
+        
+        update_job_status(
+            job_id, 
+            'completed', 
+            100, 
+            f'Complete! ✓ {success} tagged, ✗ {failed} failed | Cost: ${cost}'
+        )
+        
+    except Exception as e:
+        error_msg = f"Error: {str(e)}"
+        error_traceback = traceback.format_exc()
+        log_message(job_id, f'ERROR: {error_traceback}')
+        update_job_status(job_id, 'failed', 0, error_msg, error=error_traceback)
+
+@app.route('/api/jobs/fashion-tagging', methods=['POST'])
+def start_fashion_tagging():
+    """Start fashion tagging job (Job 3)"""
+    try:
+        data = request.json
+        sheet_name = data.get('sheetName', 'BrownButter Products')
+        
+        # Generate job ID
+        job_id = f"fashion_tag_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Initialize job tracking
+        job_status[job_id] = {
+            'status': 'starting',
+            'progress': 0,
+            'message': 'Initializing fashion tagging...',
+            'error': None
+        }
+        job_logs[job_id] = []
+        job_cancelled[job_id] = False
+        
+        # Start background thread
+        thread = threading.Thread(
+            target=run_fashion_tagging,
+            args=(job_id, sheet_name)
+        )
+        thread.daemon = True
+        thread.start()
+        job_threads[job_id] = thread
+        
+        return jsonify({
+            'success': True,
+            'jobId': job_id,
+            'message': 'Fashion tagging job started'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ============================================================================
+# JOB 4: GENERATE SHOPIFY CSV
 # ============================================================================
 
 def run_generate_csv(job_id, sheet_name):

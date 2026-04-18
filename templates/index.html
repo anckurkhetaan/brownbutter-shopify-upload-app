@@ -120,15 +120,27 @@
     </div>
     
     <div class="job-card">
-        <h2>3. Generate Shopify CSV</h2>
-        <p>Creates Shopify import file from product data</p>
+        <h2>3. Fashion Tagging (AI)</h2>
+        <p>Generate product titles, descriptions, and tags using Claude Vision AI | <span id="cost-estimate-3" style="color: #666; font-size: 0.9em;">Estimating cost...</span></p>
         <div>
-            <button id="btn-3" onclick="startJob('generate-csv', 3)">Generate CSV</button>
+            <button id="btn-3" onclick="startJob('fashion-tagging', 3)">Generate Tags & Titles</button>
             <button id="stop-3" class="stop-btn" onclick="stopJob(3)" style="display:none;">Stop</button>
         </div>
         <div id="progress-bar-3" class="progress-bar"><div id="progress-fill-3" class="progress-fill">0%</div></div>
         <div id="status-3" class="status"></div>
         <div id="logs-3" class="logs"></div>
+    </div>
+
+    <div class="job-card">
+        <h2>4. Generate Shopify CSV</h2>
+        <p>Creates Shopify import file from product data</p>
+        <div>
+            <button id="btn-4" onclick="startJob('generate-csv', 4)">Generate CSV</button>
+            <button id="stop-4" class="stop-btn" onclick="stopJob(4)" style="display:none;">Stop</button>
+        </div>
+        <div id="progress-bar-4" class="progress-bar"><div id="progress-fill-3" class="progress-fill">0%</div></div>
+        <div id="status-4" class="status"></div>
+        <div id="logs-4" class="logs"></div>
     </div>
 
     <script>
