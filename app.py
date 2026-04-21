@@ -53,12 +53,13 @@ def log_message(job_id, message):
         job_logs[job_id] = []
     
     timestamp = datetime.now().strftime("%H:%M:%S")
-    log_entry = f"[{timestamp}] {message}"
-    job_logs[job_id].append(log_entry)
+    formatted = f"[{timestamp}] {message}"
+    job_logs[job_id].append(formatted)
     
-    # Force flush to stdout for Render logs
-    print(f"[{job_id}] {message}", flush=True)
-    sys.stdout.flush()
+    # Print to console for debugging (use sys.stdout directly to avoid LogCapture)
+    import sys
+    sys.__stdout__.write(f"[{job_id}] {message}\n")
+    sys.__stdout__.flush()
 
 def update_job_status(job_id, status, progress=0, message="", error=None):
     """Update job status with error tracking and timing"""
