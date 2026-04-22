@@ -165,8 +165,8 @@ def analyze_fashion_image(client, image_url, category, occasion_tags):
     
     search_tags = SEARCH_TAGS_BY_CATEGORY.get(category, [])
     
-    if not search_tags and category != 'Co-ords':
-        print(f"    No filters for '{category}'")
+    if not search_tags:
+        print(f"    No style filters for '{category}' - will generate title/description only")
     
     image_data, media_type = download_image_as_base64(image_url)
     
@@ -191,7 +191,7 @@ TITLE: [5-7 word Zara-style product title]
 DESCRIPTION: [EXACTLY 12-15 words with Zara/H&M playful energy]
 
 AVAILABLE SEARCH TAGS FOR {category.upper()}:
-{', '.join(search_tags) if search_tags else 'No specific style filters'}
+{', '.join(search_tags) if search_tags else 'No style filters available - return "None" for search tags'}
 
 AVAILABLE OCCASION TAGS (choose EXACTLY ONE):
 {', '.join(occasion_tags)}
@@ -283,9 +283,9 @@ IMPORTANT:
 
     prompt += f"""
 CRITICAL RULES:
-- Choose EXACTLY ONE search tag from the {category} filters that BEST matches
-- If the item is DENIM fabric, add "Denim" to the tag
-- If no filters match or category has no filters, return "SEARCH_TAGS: None" (unless it's denim)
+- For {category}: {"Choose EXACTLY ONE search tag that BEST matches" if search_tags else "No style filters - return 'SEARCH_TAGS: None'"}
+- If the item is DENIM fabric, add "Denim" to search tags (even if no other filters exist)
+- IMPORTANT: Always provide Title, Description, and Occasion - even if search tags are "None"
 - Be 100% certain before choosing a tag - accuracy over completion
 
 TITLE GUIDELINES:
