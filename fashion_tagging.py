@@ -46,10 +46,11 @@ SEARCH_TAGS_BY_CATEGORY = {
     'Skirts': ['Mini', 'Midi', 'Maxi'],
     'Tops': ['Peplum', 'Sheer', 'Halter Necks', 'Tube Tops', 
              'Asymmetric', 'Wrap & Tie Ups', 'Corsets', 'Bodysuits', 'Tank Tops', 'Tees'],
-    'Bottoms': ['Cargos', 'Trousers', 'Shorts'],
+    'Pants': ['Cargos', 'Trousers', 'Shorts'],
     'ActiveWear': ['Skorts', 'Sports Bra', 'Activewear Sets', 'Joggers & Sweatpants', 
                    'Tights', 'Shorts', 'Jackets'],
-    'Co-ords': [],
+    'Shorts': ['Shorts'],
+    'Co-ords': ['Co-ords'],
     'Jackets': ['Denim', 'Bomber', 'Blazer', 'Leather', 'Puffer', 'Trench']          
 }
 
@@ -238,7 +239,7 @@ MOST IMPORTANT:
 - Bodysuits EXTEND BELOW THE WAIST and have a bottom closure
 - Tank Tops END AT THE WAIST and are separate from bottoms
 """
-    elif category == 'Bottoms':
+    elif category == 'Pants':
         prompt += """
 - Cargos: Utility pants with side/leg pockets
 - Trousers: Tailored dress pants
@@ -277,7 +278,7 @@ IMPORTANT:
         prompt += """
 - No specific style filters for Co-ords
 - Only add "Denim" if the co-ord set is made from denim fabric
-- Otherwise leave search tags as "None"
+- Otherwise leave search tags as "Co-ords"
 """
 
     prompt += f"""
