@@ -443,7 +443,7 @@ def process_fashion_tagging(config, sheets_client, sheet):
             print(f"  ✗ Failed")
         
         # Rate limiting
-        time.sleep(0.5)
+        time.sleep(2)
     
     # Update Google Sheets
     if results:
