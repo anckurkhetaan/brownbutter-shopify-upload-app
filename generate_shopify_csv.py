@@ -123,8 +123,8 @@ def get_image_urls(sheet, config):
         print(f"Error reading image URLs: {e}")
         sys.exit(1)
 
-def get_ai_titles(sheet, config):
-    """Get AI-generated titles from Image Links tab (Image_1_Title column)"""
+def get_product_content(sheet, config):
+    """Get product content (Title, Description, Tags) from Image Links tab"""
     try:
         tab_name = config['google_sheets']['tabs']['image_links']
         worksheet = sheet.worksheet(tab_name)
@@ -132,21 +132,38 @@ def get_ai_titles(sheet, config):
         
         df = pd.DataFrame(records)
         
-        # Use SKU Clean if available
-        # Check if Image_1_Title column exists
+        # Columns to extract
+        columns_to_extract = ['SKU Clean']
+        column_mapping = {}
+        
+        # Check for Image_1_Title
         if 'Image_1_Title' in df.columns:
-            print(f"Loaded {len(df)} AI titles from '{tab_name}' tab")
-            return df[['SKU Clean', 'Image_1_Title']].rename(columns={'Image_1_Title': 'AI_Title'})
-        # Fallback to AI_Title if exists
-        elif 'AI_Title' in df.columns:
-            print(f"Loaded {len(df)} AI titles from '{tab_name}' tab (AI_Title column)")
-            return df[['SKU Clean', 'AI_Title']]
+            columns_to_extract.append('Image_1_Title')
+            column_mapping['Image_1_Title'] = 'Title'
+            print(f"✓ Found Image_1_Title column")
+        
+        # Check for Description
+        if 'Description' in df.columns:
+            columns_to_extract.append('Description')
+            column_mapping['Description'] = 'Description'
+            print(f"✓ Found Description column")
+        
+        # Check for Tags
+        if 'Tags' in df.columns:
+            columns_to_extract.append('Tags')
+            column_mapping['Tags'] = 'Tags'
+            print(f"✓ Found Tags column")
+        
+        if len(columns_to_extract) > 1:
+            result_df = df[columns_to_extract].rename(columns=column_mapping)
+            print(f"Loaded product content for {len(result_df)} SKUs from '{tab_name}' tab")
+            return result_df
         else:
-            print(f"Warning: 'Image_1_Title' column not found in '{tab_name}' - will use generated titles")
+            print(f"Warning: No content columns found in '{tab_name}'")
             return pd.DataFrame()
         
     except Exception as e:
-        print(f"Error reading AI titles: {e}")
+        print(f"Error reading product content: {e}")
         return pd.DataFrame()
 
 # ============================================================================
@@ -165,6 +182,7 @@ def generate_handle(category, color):
     random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
     return f"{category_clean}-{color_clean}-{random_suffix}"
 
+# DEPRECATED - No longer used (Title, Description, Tags now come from Excel)
 def generate_fallback_title(category, color):
     """Generate fallback title if AI title not available"""
     return f"{category} - {color}"
@@ -173,6 +191,7 @@ def normalize_category_key(category):
     """Convert category name to config key format"""
     return category.lower().replace(' ', '_').replace('-', '_')
 
+# DEPRECATED - No longer used (Description now comes from Excel)
 def generate_description(title, category):
     """Generate simple description"""
     templates = [
@@ -196,6 +215,7 @@ def get_size_range(category, config):
     # Default fallback
     return ['XS', 'S', 'M', 'L', 'XL']
 
+# DEPRECATED - No longer used (Tags now come from Excel)
 def get_tags(category, gender, config):
     """Generate tags for product"""
     tags = []
@@ -242,7 +262,7 @@ def get_size_metafield_value(sizes):
 # CSV GENERATION (NEW SHOPIFY FORMAT)
 # ============================================================================
 
-def create_shopify_rows(product, image_data, ai_title_data, config):
+def create_shopify_rows(product, image_data, product_content_data, config):
     """Create Shopify CSV rows for a single product (NEW FORMAT)"""
     rows = []
     
@@ -254,15 +274,33 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     # Product basic info
     sku = product['SKU Clean']
     
-    # Get AI title if available, otherwise use fallback
-    if not ai_title_data.empty and sku in ai_title_data['SKU Clean'].values:
-        ai_row = ai_title_data[ai_title_data['SKU Clean'] == sku].iloc[0]
-        title = ai_row.get('AI_Title', '') if pd.notna(ai_row.get('AI_Title')) else generate_fallback_title(product['Category'], product['Color'])
-    else:
-        title = generate_fallback_title(product['Category'], product['Color'])
+    # Get product content (Title, Description, Tags) from Image Links tab
+    title = ''
+    description = ''
+    tags = ''
     
+    if not product_content_data.empty and sku in product_content_data['SKU Clean'].values:
+        content_row = product_content_data[product_content_data['SKU Clean'] == sku].iloc[0]
+        
+        # Get Title (from Image_1_Title)
+        title = content_row.get('Title', '') if pd.notna(content_row.get('Title')) else ''
+        
+        # Get Description
+        description = content_row.get('Description', '') if pd.notna(content_row.get('Description')) else ''
+        
+        # Get Tags
+        tags = content_row.get('Tags', '') if pd.notna(content_row.get('Tags')) else ''
+    
+    # Fallback for title if empty
+    if not title:
+        title = f"{product['Category']} - {product['Color']}"
+    
+    # Wrap description in HTML paragraph tags if present
+    if description:
+        description = f"<p>{description}</p>"
+    
+    # Generate handle and vendor
     handle = generate_handle(product['Category'], product['Color'])
-    description = generate_description(title, product['Category'])
     vendor = defaults.get('vendor', 'BrownButter')
     
     # Generate category key from Gender + Category
@@ -271,7 +309,6 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     full_key = f"{gender_key}_{category_key}"
     
     category = get_shopify_category(product['Gender'], product['Category'], config)
-    tags = get_tags(full_key, product['Gender'], config)
     
     # Pricing
     price = product.get('Price_After_Discount', 0)
@@ -310,7 +347,7 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     if not image_urls:
         image_urls = ['']
     
-    # Create rows for each size with images distributed
+    # Create rows for each size with images distributed across sizes
     for size_idx, size in enumerate(sizes):
         # Determine which image to use (distribute images across sizes)
         if size_idx < len(image_urls):
@@ -387,7 +424,7 @@ def create_shopify_rows(product, image_data, ai_title_data, config):
     
     return rows
 
-def generate_csv(product_df, image_df, ai_title_df, config):
+def generate_csv(product_df, image_df, product_content_df, config):
     """Generate complete Shopify CSV"""
     print("\n" + "=" * 70)
     print("GENERATING SHOPIFY CSV (NEW FORMAT)")
@@ -401,7 +438,7 @@ def generate_csv(product_df, image_df, ai_title_df, config):
         print(f"Processing {idx+1}/{len(product_df)}: {sku}")
         
         # Generate rows for this product
-        rows = create_shopify_rows(product, image_df, ai_title_df, config)
+        rows = create_shopify_rows(product, image_df, product_content_df, config)
         all_rows.extend(rows)
         
         print(f"  Created {len(rows)} rows")
@@ -436,10 +473,10 @@ def main():
     # Get data
     product_df = get_product_data(sheet, config)
     image_df = get_image_urls(sheet, config)
-    ai_title_df = get_ai_titles(sheet, config)
+    product_content_df = get_product_content(sheet, config)
     
     # Generate CSV
-    shopify_df = generate_csv(product_df, image_df, ai_title_df, config)
+    shopify_df = generate_csv(product_df, image_df, product_content_df, config)
     
     # Save CSV
     os.makedirs('static/downloads', exist_ok=True)
