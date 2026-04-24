@@ -124,7 +124,7 @@ def get_image_urls(sheet, config):
         sys.exit(1)
 
 def get_product_content(sheet, config):
-    """Get product content (Title, Description, Tags) from Image Links tab"""
+    """Get product content (Title, Description, Tags, Occasion) from Image Links tab"""
     try:
         tab_name = config['google_sheets']['tabs']['image_links']
         worksheet = sheet.worksheet(tab_name)
@@ -153,6 +153,12 @@ def get_product_content(sheet, config):
             columns_to_extract.append('Tags')
             column_mapping['Tags'] = 'Tags'
             print(f"✓ Found Tags column")
+        
+        # Check for Occasion
+        if 'Occasion' in df.columns:
+            columns_to_extract.append('Occasion')
+            column_mapping['Occasion'] = 'Occasion'
+            print(f"✓ Found Occasion column")
         
         if len(columns_to_extract) > 1:
             result_df = df[columns_to_extract].rename(columns=column_mapping)
@@ -274,10 +280,11 @@ def create_shopify_rows(product, image_data, product_content_data, config):
     # Product basic info
     sku = product['SKU Clean']
     
-    # Get product content (Title, Description, Tags) from Image Links tab
+    # Get product content (Title, Description, Tags, Occasion) from Image Links tab
     title = ''
     description = ''
-    tags = ''
+    search_tags = ''  # Style tags from Claude (e.g., "Wrap & Tie Ups", "Midi")
+    occasion = ''
     
     if not product_content_data.empty and sku in product_content_data['SKU Clean'].values:
         content_row = product_content_data[product_content_data['SKU Clean'] == sku].iloc[0]
@@ -288,8 +295,59 @@ def create_shopify_rows(product, image_data, product_content_data, config):
         # Get Description
         description = content_row.get('Description', '') if pd.notna(content_row.get('Description')) else ''
         
-        # Get Tags
-        tags = content_row.get('Tags', '') if pd.notna(content_row.get('Tags')) else ''
+        # Get Tags (style tags like "Wrap & Tie Ups", "Midi", etc.)
+        search_tags = content_row.get('Tags', '') if pd.notna(content_row.get('Tags')) else ''
+        
+        # Get Occasion
+        occasion = content_row.get('Occasion', '') if pd.notna(content_row.get('Occasion')) else ''
+    
+    # Remove "None" from search_tags if present
+    if search_tags and search_tags.strip().lower() != 'none':
+        search_tags_clean = search_tags.strip()
+    else:
+        search_tags_clean = ''
+    
+    # Build metafields based on category and tags
+    category = product['Category']
+    
+    # Category-specific metafields (custom namespace)
+    active_wear_metafield = search_tags_clean if category == 'ActiveWear' else ''
+    
+    # Bottom Type: Pants (from tags), Shorts (literal "Shorts"), Skirts (literal "Skirts")
+    if category == 'Pants':
+        bottom_type_metafield = search_tags_clean
+    elif category == 'Shorts':
+        bottom_type_metafield = 'Shorts'
+    elif category == 'Skirts':
+        bottom_type_metafield = 'Skirts'
+    else:
+        bottom_type_metafield = ''
+    
+    jackets_metafield = search_tags_clean if category == 'Jackets' else ''
+    top_style_metafield = search_tags_clean if category == 'Tops' else ''
+    skirt_dress_length_custom = search_tags_clean if category in ['Dresses', 'Skirts'] else ''
+    
+    # Shopify namespace metafields
+    dress_occasion_metafield = occasion if category == 'Dresses' else ''
+    skirt_dress_length_shopify = search_tags_clean if category in ['Dresses', 'Skirts'] else ''
+    
+    # Build final Tags column (combine search_tags + occasion + standard tags)
+    tags_list = []
+    
+    # Add search tags
+    if search_tags_clean:
+        tags_list.append(search_tags_clean)
+    
+    # Add occasion
+    if occasion:
+        tags_list.append(occasion)
+    
+    # Add standard tags
+    tags_list.append('brownbutter')
+    tags_list.append(product['Gender'].lower())
+    tags_list.append(category.lower())
+    
+    final_tags = ', '.join(tags_list)
     
     # Fallback for title if empty
     if not title:
@@ -365,7 +423,7 @@ def create_shopify_rows(product, image_data, product_content_data, config):
             'Vendor': vendor if size_idx == 0 else '',
             'Product Category': category if size_idx == 0 else '',
             'Type': product['Category'] if size_idx == 0 else '',
-            'Tags': tags if size_idx == 0 else '',
+            'Tags': final_tags if size_idx == 0 else '',
             'Published': 'TRUE' if defaults.get('published', True) else 'FALSE',
             'Option1 Name': 'Size',
             'Option1 Value': size,
@@ -397,16 +455,22 @@ def create_shopify_rows(product, image_data, product_content_data, config):
             'Gift Card': 'FALSE',
             'SEO Title': seo_title if size_idx == 0 else '',
             'SEO Description': seo_description if size_idx == 0 else '',
-            'Top Style (product.metafields.custom.top_style)': '',
+            'Active Wear (product.metafields.custom.active_wear)': active_wear_metafield if size_idx == 0 else '',
+            'Bottom Type (product.metafields.custom.bottom_type)': bottom_type_metafield if size_idx == 0 else '',
+            'Denim Type (product.metafields.custom.denim_type)': '',  # Blank for now
+            'Jackets (product.metafields.custom.jackets)': jackets_metafield if size_idx == 0 else '',
+            'Skirts (product.metafields.custom.skirts)': '',  # Blank for now
+            'Skirt/Dress length type (product.metafields.custom.skirt_dress_length_type)': skirt_dress_length_custom if size_idx == 0 else '',
+            'Top Style (product.metafields.custom.top_style)': top_style_metafield if size_idx == 0 else '',
             'Age group (product.metafields.shopify.age-group)': age_group if size_idx == 0 else '',
             'Color (product.metafields.shopify.color-pattern)': color_metafield if size_idx == 0 else '',
             'Costume theme (product.metafields.shopify.costume-theme)': '',
-            'Dress occasion (product.metafields.shopify.dress-occasion)': 'casual; everyday' if size_idx == 0 else '',
+            'Dress occasion (product.metafields.shopify.dress-occasion)': dress_occasion_metafield if size_idx == 0 else '',
             'Dress style (product.metafields.shopify.dress-style)': '',
             'Fabric (product.metafields.shopify.fabric)': fabric_metafield if size_idx == 0 else '',
             'Neckline (product.metafields.shopify.neckline)': '',
             'Size (product.metafields.shopify.size)': size_metafield if size_idx == 0 else '',
-            'Skirt/Dress length type (product.metafields.shopify.skirt-dress-length-type)': '',
+            'Skirt/Dress length type (product.metafields.shopify.skirt-dress-length-type)': skirt_dress_length_shopify if size_idx == 0 else '',
             'Sleeve length type (product.metafields.shopify.sleeve-length-type)': '',
             'Target gender (product.metafields.shopify.target-gender)': target_gender if size_idx == 0 else '',
             'Complementary products (product.metafields.shopify--discovery--product_recommendation.complementary_products)': '',
