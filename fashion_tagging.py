@@ -287,12 +287,14 @@ CRITICAL RULES:
 - If the item is DENIM fabric, add "Denim" to search tags (even if no other filters exist)
 - IMPORTANT: Always provide Title, Description, and Occasion - even if search tags are "None"
 - Be 100% certain before choosing a tag - accuracy over completion
+- FORBIDDEN: Never use the word "belted" in titles
 
 TITLE GUIDELINES:
 - 5-7 words maximum
 - Format: [Color] [Style Detail] [Category]
 - Use specific color names (emerald, mustard, navy) not basic (green, yellow, blue)
 - Include "Denim" in title if it's denim fabric
+- FORBIDDEN: Never use the word "belted" in titles
 
 DESCRIPTION GUIDELINES:
 - EXACTLY 12-15 words
