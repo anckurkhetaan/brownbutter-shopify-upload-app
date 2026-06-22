@@ -256,9 +256,9 @@ def get_shopify_category(gender, category, config):
     
     return categories.get(full_key, '')
 
-def generate_sku(product_code, size_index):
+def generate_sku(product_code, size_value):
     """Generate SKU"""
-    return f"{product_code}-{size_index}"
+    return f"{product_code}_{size_value}"
 
 def get_size_metafield_value(sizes):
     """Format size values for metafield"""
@@ -434,7 +434,7 @@ def create_shopify_rows(product, image_data, product_content_data, config):
             'Option3 Name': '',
             'Option3 Value': '',
             'Option3 Linked To': '',
-            'Variant SKU': generate_sku(product['SKU Clean'], size_idx + 1),
+            'Variant SKU': generate_sku(product['SKU Clean'], size),
             'Variant Grams': 0,
             'Variant Inventory Tracker': 'shopify',
             'Variant Inventory Qty': defaults.get('inventory_per_size', 5),
